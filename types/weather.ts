@@ -1,34 +1,33 @@
-/** Coordinates returned by the OpenWeather Geocoding API. */
-export interface GeocodingResult {
+/** Response from GET /data/2.5/weather (free tier). */
+export interface CurrentWeatherResponse {
   name: string;
-  lat: number;
-  lon: number;
-  country: string;
-  state?: string;
-}
-
-/** Shape of the current-weather portion from the One Call API 3.0. */
-export interface OneCallCurrent {
-  temp: number;
-  feels_like: number;
-  humidity: number;
-  wind_speed: number;
+  main: {
+    temp: number;
+    feels_like: number;
+    temp_min: number;
+    temp_max: number;
+    humidity: number;
+  };
   weather: { id: number; main: string; description: string; icon: string }[];
+  wind: { speed: number };
 }
 
-/** Shape of a single daily entry from the One Call API 3.0. */
-export interface OneCallDaily {
+/** A single 3-hour entry in the 5-day forecast response. */
+export interface ForecastEntry {
   dt: number;
-  temp: { day: number; min: number; max: number; night: number };
+  main: {
+    temp: number;
+    temp_min: number;
+    temp_max: number;
+    humidity: number;
+  };
   weather: { id: number; main: string; description: string; icon: string }[];
 }
 
-/** Full response from the One Call API 3.0 (fields we use). */
-export interface OneCallResponse {
-  lat: number;
-  lon: number;
-  current: OneCallCurrent;
-  daily: OneCallDaily[];
+/** Response from GET /data/2.5/forecast (free tier). */
+export interface ForecastResponse {
+  city: { name: string; country: string };
+  list: ForecastEntry[];
 }
 
 /** A single day in the 5-day forecast returned by our API. */

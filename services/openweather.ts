@@ -1,11 +1,12 @@
 import axios from "axios";
 import type {
-  GeocodingResult,
-  OneCallResponse,
+  CurrentWeatherResponse,
+  ForecastResponse,
+  ForecastDay,
   WeatherApiResponse,
 } from "../types/weather";
 
-const BASE_URL = "https://api.openweathermap.org";
+const BASE_URL = "https://api.openweathermap.org/data/2.5";
 
 function getApiKey(): string {
   const key = process.env.OPENWEATHER_API_KEY;
@@ -19,58 +20,78 @@ function getApiKey(): string {
 }
 
 /**
- * Convert a city name to geographic coordinates using the OpenWeather
- * Geocoding API.
+ * Fetch current weather conditions for a city using the free-tier
+ * /data/2.5/weather endpoint.
  */
-export async function geocodeCity(city: string): Promise<GeocodingResult> {
-  const { data } = await axios.get<GeocodingResult[]>(
-    `${BASE_URL}/geo/1.0/direct`,
-    { params: { q: city, limit: 1, appid: getApiKey() } },
+async function fetchCurrentWeather(
+  city: string,
+): Promise<CurrentWeatherResponse> {
+  const { data } = await axios.get<CurrentWeatherResponse>(
+    `${BASE_URL}/weather`,
+    { params: { q: city, units: "metric", appid: getApiKey() } },
   );
-
-  if (!data.length) {
-    throw new GeocodingError(`City not found: ${city}`);
-  }
-  return data[0];
+  return data;
 }
 
 /**
- * Fetch current conditions and an 8-day daily forecast from the
- * One Call API 3.0, then trim and reshape the result to our API contract.
+ * Fetch the 5-day / 3-hour forecast for a city using the free-tier
+ * /data/2.5/forecast endpoint, then aggregate into daily summaries.
  */
-export async function getWeather(city: string): Promise<WeatherApiResponse> {
-  const location = await geocodeCity(city);
-
-  const { data } = await axios.get<OneCallResponse>(
-    `${BASE_URL}/data/3.0/onecall`,
-    {
-      params: {
-        lat: location.lat,
-        lon: location.lon,
-        exclude: "minutely,hourly,alerts",
-        units: "metric",
-        appid: getApiKey(),
-      },
-    },
+async function fetchForecast(city: string): Promise<ForecastDay[]> {
+  const { data } = await axios.get<ForecastResponse>(
+    `${BASE_URL}/forecast`,
+    { params: { q: city, units: "metric", appid: getApiKey() } },
   );
 
-  const current = data.current;
-  const forecast = data.daily.slice(0, 5).map((day) => {
-    const date = new Date(day.dt * 1000);
+  const dailyMap = new Map<
+    string,
+    { high: number; low: number; condition: string; dayName: string }
+  >();
+
+  for (const entry of data.list) {
+    const date = new Date(entry.dt * 1000);
+    const dateKey = date.toISOString().slice(0, 10);
     const dayName = date.toLocaleDateString("en-US", { weekday: "short" });
-    return {
-      day: dayName,
-      high: Math.round(day.temp.max),
-      low: Math.round(day.temp.min),
-      condition: day.weather[0].description,
-    };
-  });
+
+    const existing = dailyMap.get(dateKey);
+    if (existing) {
+      existing.high = Math.max(existing.high, entry.main.temp_max);
+      existing.low = Math.min(existing.low, entry.main.temp_min);
+    } else {
+      dailyMap.set(dateKey, {
+        high: entry.main.temp_max,
+        low: entry.main.temp_min,
+        condition: entry.weather[0].description,
+        dayName,
+      });
+    }
+  }
+
+  return Array.from(dailyMap.values())
+    .slice(0, 5)
+    .map((d) => ({
+      day: d.dayName,
+      high: Math.round(d.high),
+      low: Math.round(d.low),
+      condition: d.condition,
+    }));
+}
+
+/**
+ * Get current conditions and a 5-day forecast for a city, shaped to
+ * match the existing frontend contract.
+ */
+export async function getWeather(city: string): Promise<WeatherApiResponse> {
+  const [current, forecast] = await Promise.all([
+    fetchCurrentWeather(city),
+    fetchForecast(city),
+  ]);
 
   return {
-    city: location.name,
-    temperature: Math.round(current.temp),
+    city: current.name,
+    temperature: Math.round(current.main.temp),
     condition: current.weather[0].description,
-    humidity: current.humidity,
+    humidity: current.main.humidity,
     forecast,
   };
 }
