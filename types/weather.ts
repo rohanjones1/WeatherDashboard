@@ -7,28 +7,38 @@ export interface GeocodingResult {
   state?: string;
 }
 
-/** Shape of the current-weather portion from the One Call API 3.0. */
-export interface OneCallCurrent {
-  temp: number;
-  feels_like: number;
-  humidity: number;
-  wind_speed: number;
+/** Shape of the response from /data/2.5/weather. */
+export interface CurrentWeatherResponse {
+  name: string;
+  main: {
+    temp: number;
+    feels_like: number;
+    humidity: number;
+    temp_min: number;
+    temp_max: number;
+  };
   weather: { id: number; main: string; description: string; icon: string }[];
+  wind: { speed: number };
 }
 
-/** Shape of a single daily entry from the One Call API 3.0. */
-export interface OneCallDaily {
+/** A single 3-hour entry from /data/2.5/forecast. */
+export interface ForecastListItem {
   dt: number;
-  temp: { day: number; min: number; max: number; night: number };
+  main: {
+    temp: number;
+    temp_min: number;
+    temp_max: number;
+  };
   weather: { id: number; main: string; description: string; icon: string }[];
 }
 
-/** Full response from the One Call API 3.0 (fields we use). */
-export interface OneCallResponse {
-  lat: number;
-  lon: number;
-  current: OneCallCurrent;
-  daily: OneCallDaily[];
+/** Shape of the response from /data/2.5/forecast. */
+export interface ForecastResponse {
+  list: ForecastListItem[];
+  city: {
+    name: string;
+    country: string;
+  };
 }
 
 /** A single day in the 5-day forecast returned by our API. */
